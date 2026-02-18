@@ -1,0 +1,12 @@
+{
+    "name": "sirio-qa",
+    "version": "1.0.0",
+    "main": "motor.js",
+    "dependencies": {
+        "@playwright/test": "^1.58.2",
+        "express": "^5.2.1",
+        "js-yaml": "^4.1.1",
+        "kill-port": "^2.0.1",
+        "playwright": "^1.58.2"
+    }
+}
