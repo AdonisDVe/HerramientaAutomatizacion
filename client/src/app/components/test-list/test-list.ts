@@ -94,6 +94,27 @@ export class TestListComponent implements OnInit {
     });
   }
 
+  crearManual(): void {
+    if (!this.nuevoTest.nombre || !this.nuevoTest.url) {
+      this.mostrarToast('Completa el nombre y la URL.', 'error');
+      return;
+    }
+    this.cargando = true;
+    this.testService.createManualTest(this.nuevoTest).subscribe({
+      next: () => {
+        this.cargando = false;
+        this.mostrandoGrabador = false;
+        this.nuevoTest = { nombre: '', url: '' };
+        this.cargar();
+        this.mostrarToast('Test creado. Ya puedes editar su código.', 'success');
+      },
+      error: (err) => {
+        this.cargando = false;
+        this.mostrarToast('Error al crear el test manual', 'error');
+      }
+    });
+  }
+
   ejecutarTest(testId: number): void {
     const slowMo = this.getSlowMo(testId);
     this.ejecutandoId.set(testId);

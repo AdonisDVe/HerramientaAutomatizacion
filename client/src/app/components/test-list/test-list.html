@@ -66,10 +66,22 @@
           <input type="text" [(ngModel)]="nuevoTest.url" placeholder="https://...">
         </div>
         <div class="modal-actions">
-          <button class="btn-ghost" (click)="mostrandoGrabador = false">Cancelar</button>
-          <button class="btn-primary" [disabled]="cargando" (click)="iniciarGrabacion()">
-            {{ cargando ? '⏳ Levantando Playwright...' : '⏺ Iniciar Grabación' }}
-          </button>
+          <button class="btn-secondary" (click)="mostrandoGrabador = false" [disabled]="cargando">Cancelar</button>
+
+          <div class="modal-btn-group">
+            <button class="btn-primary btn-outline" (click)="crearManual()"
+              [disabled]="cargando || !nuevoTest.nombre || !nuevoTest.url"
+              title="Crea el test vacío para pegar el código después">
+              @if (cargando) { <span class="loader"></span> }
+              @else { ✍️ Crear Manualmente }
+            </button>
+            <button class="btn-primary" (click)="iniciarGrabacion()"
+              [disabled]="cargando || !nuevoTest.nombre || !nuevoTest.url"
+              title="Requiere entorno local con escritorio">
+              @if (cargando) { <span class="loader"></span> }
+              @else { 🔴 Iniciar Grabador }
+            </button>
+          </div>
         </div>
       </div>
     </div>

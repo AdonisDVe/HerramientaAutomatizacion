@@ -111,6 +111,28 @@ exports.recordAndSave = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+// Crear Script Manualmente (Sin Grabador)
+// ─────────────────────────────────────────────
+exports.createManualTest = async (req, res) => {
+    const { nombre, url } = req.body;
+    const usuarioId = req.user.id;
+
+    if (!nombre || !url) return res.status(400).json({ error: 'Nombre y URL requeridos' });
+
+    try {
+        const scriptBase = `const { test, expect } = require('@playwright/test');\n\ntest('${nombre}', async ({ page }) => {\n  await page.goto('${url}');\n  // Pega el código que grabaste localmente aquí 👇\n});`;
+
+        await db.query(
+            'INSERT INTO tests (nombre, url_base, descripcion, script_codigo, creado_por, estado) VALUES (?, ?, ?, ?, ?, ?)',
+            [nombre, url, `Creado manualmente por ${req.user.nombre}`, scriptBase, usuarioId, 'ACTIVO']
+        );
+        res.json({ message: 'Test manual creado correctamente' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────
 // Ejecutar Robot de forma Autónoma
 // ─────────────────────────────────────────────
 exports.executeTest = async (req, res) => {

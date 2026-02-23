@@ -11,6 +11,7 @@ router.patch('/admin/usuarios/:id/rol', authMiddleware, testController.cambiarRo
 // — Tests —
 router.get('/', authMiddleware, testController.getAllTests);
 router.post('/record', authMiddleware, testController.recordAndSave);
+router.post('/manual', authMiddleware, testController.createManualTest);
 router.post('/:testId/run', authMiddleware, testController.executeTest);
 router.delete('/:id', authMiddleware, testController.deleteTest);
 
