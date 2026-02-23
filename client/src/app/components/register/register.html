@@ -1,0 +1,54 @@
+<div class="auth-page">
+    <div class="auth-card">
+
+        <div class="auth-logo">
+            <img src="/novum.png" alt="Novum" class="logo-img">
+        </div>
+
+        <h1 class="auth-title">Crear cuenta</h1>
+        <p class="auth-sub">Únete a la plataforma de automatización de pruebas</p>
+
+        @if (error()) {
+        <div class="auth-error">{{ error() }}</div>
+        }
+
+        <form class="auth-form" (ngSubmit)="register()">
+            <div class="field-group">
+                <label class="field-label">Nombre completo</label>
+                <input class="field-input" type="text" [(ngModel)]="form.nombre_completo" name="nombre_completo"
+                    placeholder="Ej: Juan Pérez" [disabled]="cargando()" required>
+            </div>
+
+            <div class="field-group">
+                <label class="field-label">Correo electrónico</label>
+                <input class="field-input" type="email" [(ngModel)]="form.email" name="email"
+                    placeholder="tu@empresa.com" [disabled]="cargando()" required>
+            </div>
+
+            <div class="field-group">
+                <label class="field-label">Contraseña</label>
+                <input class="field-input" [type]="showPass() ? 'text' : 'password'" [(ngModel)]="form.password"
+                    name="password" placeholder="Mínimo 6 caracteres" [disabled]="cargando()" required>
+            </div>
+
+            <div class="field-group">
+                <label class="field-label">Confirmar contraseña</label>
+                <input class="field-input" [type]="showPass() ? 'text' : 'password'" [(ngModel)]="form.confirm_password"
+                    name="confirm_password" placeholder="Repite tu contraseña" [disabled]="cargando()" required>
+            </div>
+
+            <label class="show-pass-label">
+                <input type="checkbox" (change)="showPass.set(!showPass())"> Mostrar contraseñas
+            </label>
+
+            <button class="btn-submit" type="submit" [disabled]="cargando()">
+                {{ cargando() ? 'Creando cuenta...' : 'Crear cuenta' }}
+            </button>
+        </form>
+
+        <p class="auth-footer">
+            ¿Ya tienes cuenta? <a routerLink="/login">Iniciar sesión</a>
+        </p>
+
+    </div>
+</div>

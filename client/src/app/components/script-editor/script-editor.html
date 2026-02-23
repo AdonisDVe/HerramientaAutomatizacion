@@ -1,0 +1,61 @@
+<!-- Modal Backdrop -->
+<div class="modal-backdrop" (click)="cerrar.emit()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="header-info">
+        <span class="badge-code">JS</span>
+        <div>
+          <h2>Editor de Script</h2>
+          <p class="test-name">{{ testNombre }}</p>
+        </div>
+      </div>
+      <button class="btn-close" (click)="cerrar.emit()">✖</button>
+    </div>
+
+    <!-- Toast Message -->
+    @if (mensaje()) {
+      <div class="toast" [class.toast-success]="mensaje()!.tipo === 'success'" [class.toast-error]="mensaje()!.tipo === 'error'">
+        {{ mensaje()!.texto }}
+      </div>
+    }
+
+    <!-- Loading state -->
+    @if (cargando()) {
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando script...</p>
+      </div>
+    } @else {
+      <!-- Code Editor -->
+      <div class="editor-wrapper">
+        <div class="editor-toolbar">
+          <span class="lang-tag">JavaScript · Playwright</span>
+          <span class="hint-text">Puedes modificar los valores antes de ejecutar</span>
+        </div>
+        <textarea
+          class="code-area"
+          [(ngModel)]="scriptCodigo"
+          [value]="scriptCodigo()"
+          (input)="scriptCodigo.set($any($event.target).value)"
+          spellcheck="false"
+          autocomplete="off"
+          rows="20"
+        ></textarea>
+      </div>
+
+      <!-- Actions -->
+      <div class="modal-actions">
+        <button class="btn-secondary" (click)="cerrar.emit()">Cancelar</button>
+        <button class="btn-save" [disabled]="guardando()" (click)="guardarScript()">
+          {{ guardando() ? 'Guardando...' : '💾 Guardar Cambios' }}
+        </button>
+        <button class="btn-run" (click)="ejecutarConScript()">
+          ▶ Guardar y Ejecutar
+        </button>
+      </div>
+    }
+
+  </div>
+</div>

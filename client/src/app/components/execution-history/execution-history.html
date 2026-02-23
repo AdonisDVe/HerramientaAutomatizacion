@@ -1,0 +1,93 @@
+<!-- Modal Backdrop -->
+<div class="modal-backdrop" (click)="cerrar.emit()">
+    <div class="modal-panel" (click)="$event.stopPropagation()">
+
+        <!-- Header -->
+        <div class="modal-header">
+            <div class="header-info">
+                <span class="badge-hist">HIST</span>
+                <div>
+                    <h2>Historial de Ejecuciones</h2>
+                    <p class="test-name">{{ testNombre }}</p>
+                </div>
+            </div>
+            <button class="btn-close" (click)="cerrar.emit()">✖</button>
+        </div>
+
+        <!-- Video Player Modal -->
+        @if (videoSeleccionado()) {
+        <div class="video-overlay" (click)="cerrarVideo()">
+            <div class="video-card" (click)="$event.stopPropagation()">
+                <div class="video-header">
+                    <h3>Evidencia de Ejecución</h3>
+                    <button (click)="cerrarVideo()">✖ Cerrar</button>
+                </div>
+                <video [src]="videoSeleccionado()!" controls autoplay></video>
+            </div>
+        </div>
+        }
+
+        <!-- Loading -->
+        @if (cargando()) {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando historial...</p>
+        </div>
+        } @else if (ejecuciones().length === 0) {
+        <div class="empty-state">
+            <span class="empty-icon">📋</span>
+            <p>Este test todavía no tiene ejecuciones registradas.</p>
+        </div>
+        } @else {
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table class="hist-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Resultado</th>
+                        <th>Duración</th>
+                        <th>Ejecutado por</th>
+                        <th>Fecha</th>
+                        <th>Evidencia</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (ej of ejecuciones(); track ej.id) {
+                    <tr>
+                        <td class="id-col">{{ ej.id }}</td>
+                        <td>
+                            <span class="badge" [class.badge-pass]="ej.resultado === 'PASSED'"
+                                [class.badge-fail]="ej.resultado === 'FAILED'"
+                                [class.badge-running]="ej.resultado === 'RUNNING'">
+                                {{ ej.resultado }}
+                            </span>
+                        </td>
+                        <td class="duration-col">{{ formatDuracion(ej.duracion_ms) }}</td>
+                        <td class="user-col">{{ ej.ejecutado_por_nombre || '—' }}</td>
+                        <td class="date-col">{{ ej.iniciado_en | date:'dd/MM/yy HH:mm' }}</td>
+                        <td class="actions-col">
+                            @if (ej.videoUrl) {
+                            <button class="btn-icon btn-play" (click)="verVideo(ej.videoUrl)"
+                                title="Ver video">▶</button>
+                            <button class="btn-icon btn-dl" (click)="descargarVideo(ej.videoUrl, ej.videoFilename)"
+                                title="Descargar">⬇</button>
+                            } @else {
+                            <span class="no-video">Sin video</span>
+                            }
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        }
+
+        <div class="modal-footer">
+            <button class="btn-secondary" (click)="cerrar.emit()">Cerrar</button>
+        </div>
+
+    </div>
+</div>

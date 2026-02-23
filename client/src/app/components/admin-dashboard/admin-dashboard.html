@@ -1,0 +1,251 @@
+<div class="page-wrapper">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <img src="/novum.png" alt="Novum" class="brand-logo">
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-item" (click)="irAlDashboard()">
+                <span>🧪</span> Mis Tests
+            </button>
+            <button class="nav-item nav-active">
+                <span>📊</span> Admin Stats
+            </button>
+        </nav>
+        <div class="sidebar-user">
+            <div class="user-info">
+                <strong>{{ user()?.nombre }}</strong>
+                <span class="rol-badge">{{ user()?.rol }}</span>
+            </div>
+            <button class="btn-logout" (click)="logout()" title="Cerrar sesión">⏻</button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <div class="page-header">
+            <div>
+                <h1>Panel de Administración</h1>
+                <p class="subtitle">Estadísticas globales de la plataforma</p>
+            </div>
+            <button class="btn-refresh" (click)="cargarStats()" [disabled]="cargando()">
+                {{ cargando() ? '...' : '↻ Actualizar' }}
+            </button>
+        </div>
+
+        <!-- ── Barra de Filtros ── -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label class="filter-label">⏱ Rango de Fecha</label>
+                <select class="filter-select" [ngModel]="filtroDias()"
+                    (ngModelChange)="filtroDias.set($event ? +$event : null)">
+                    <option [ngValue]="null">Desde siempre</option>
+                    <option [ngValue]="1">Últimas 24 horas</option>
+                    <option [ngValue]="7">Últimos 7 días</option>
+                    <option [ngValue]="30">Últimos 30 días</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">👤 Usuario</label>
+                <select class="filter-select" [ngModel]="filtroUsuarioId()"
+                    (ngModelChange)="filtroUsuarioId.set($event ? +$event : null)">
+                    <option [ngValue]="null">Todos los usuarios</option>
+                    @for (u of opcionesUsuarios(); track u.id) {
+                    <option [ngValue]="u.id">{{ u.nombre }}</option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">🌐 Ambiente / URL</label>
+                <select class="filter-select" [ngModel]="filtroUrl()" (ngModelChange)="filtroUrl.set($event || null)">
+                    <option [ngValue]="null">Todos los ambientes</option>
+                    @for (url of opcionesUrls(); track url) {
+                    <option [ngValue]="url">{{ etiquetaUrl(url) }}</option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-actions">
+                <button class="btn-apply" (click)="aplicarFiltros()" [disabled]="cargando()">
+                    🔍 Aplicar filtros
+                </button>
+                @if (hayFiltroActivo) {
+                <button class="btn-clear" (click)="limpiarFiltros()">✖ Limpiar</button>
+                }
+            </div>
+
+            @if (hayFiltroActivo) {
+            <div class="filter-badge">
+                📌 Mostrando datos filtrados
+            </div>
+            }
+        </div>
+
+        @if (error()) {
+        <div class="error-banner">{{ error() }}</div>
+        }
+
+        @if (cargando()) {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando estadísticas...</p>
+        </div>
+        } @else if (stats()) {
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <span class="kpi-icon">🧪</span>
+                <div class="kpi-body">
+                    <div class="kpi-value">{{ stats().total_tests }}</div>
+                    <div class="kpi-label">Tests Activos</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-icon">🚀</span>
+                <div class="kpi-body">
+                    <div class="kpi-value">{{ stats().total_ejecuciones }}</div>
+                    <div class="kpi-label">Ejecuciones Totales</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-success">
+                <span class="kpi-icon">✅</span>
+                <div class="kpi-body">
+                    <div class="kpi-value">{{ stats().ejecuciones_exitosas }}</div>
+                    <div class="kpi-label">Exitosas</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-danger">
+                <span class="kpi-icon">❌</span>
+                <div class="kpi-body">
+                    <div class="kpi-value">{{ stats().ejecuciones_fallidas }}</div>
+                    <div class="kpi-label">Fallidas</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-highlight">
+                <span class="kpi-icon">📈</span>
+                <div class="kpi-body">
+                    <div class="kpi-value">{{ stats().tasa_exito }}%</div>
+                    <div class="kpi-label">Tasa de Éxito</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="stats().tasa_exito"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico 7 días -->
+        <div class="section-card chart-card">
+            <h2>Tendencia — Últimos 7 días</h2>
+            <p class="section-sub">
+                Ejecuciones exitosas vs. fallidas por día
+                @if (hayFiltroActivo) { <em>(con filtros activos)</em> }
+            </p>
+            <div class="chart-wrapper">
+                <canvas #chartCanvas></canvas>
+            </div>
+        </div>
+
+        <!-- Actividad Reciente -->
+        <div class="section-card">
+            <h2>Actividad Reciente</h2>
+            <p class="section-sub">
+                Últimas 10 ejecuciones
+                @if (hayFiltroActivo) { <em>(filtradas)</em> }
+            </p>
+
+            @if (stats().actividad_reciente.length === 0) {
+            <p class="empty-text">No hay ejecuciones para los filtros seleccionados.</p>
+            } @else {
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Ambiente</th>
+                        <th>Resultado</th>
+                        <th>Duración</th>
+                        <th>Ejecutado por</th>
+                        <th>Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (ej of stats().actividad_reciente; track ej.id) {
+                    <tr>
+                        <td class="test-name-col">{{ ej.test_nombre }}</td>
+                        <td class="url-col">{{ etiquetaUrl(ej.url_base || '') }}</td>
+                        <td>
+                            <span class="badge" [class.badge-pass]="ej.resultado === 'PASSED'"
+                                [class.badge-fail]="ej.resultado === 'FAILED'"
+                                [class.badge-running]="ej.resultado === 'RUNNING'">
+                                {{ ej.resultado }}
+                            </span>
+                        </td>
+                        <td class="mono">{{ formatDuracion(ej.duracion_ms) }}</td>
+                        <td class="muted">{{ ej.ejecutado_por_nombre || '—' }}</td>
+                        <td class="mono muted">{{ ej.iniciado_en | date:'dd/MM/yy HH:mm' }}</td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+            }
+        </div>
+
+        }
+
+        <!-- ── Gestión de Usuarios ── -->
+        <div class="section-card">
+            <h2>👥 Gestión de Usuarios</h2>
+            <p class="section-sub">Usuarios registrados en la plataforma — solo el administrador puede cambiar roles</p>
+
+            @if (usuarios().length === 0) {
+            <p class="empty-text">No hay usuarios registrados.</p>
+            } @else {
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Rol actual</th>
+                        <th>Registrado</th>
+                        <th style="text-align:right">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (u of usuarios(); track u.id) {
+                    <tr [class.row-me]="u.id === user()?.id">
+                        <td><strong>{{ u.nombre_completo }}</strong> @if (u.id === user()?.id) { <span
+                                class="badge-you">Tú</span> }</td>
+                        <td class="muted">{{ u.email }}</td>
+                        <td>
+                            <span class="badge" [class.badge-pass]="u.rol === 'QA_ADMIN'"
+                                [class.badge-running]="u.rol === 'QA_TESTER'">
+                                {{ u.rol }}
+                            </span>
+                        </td>
+                        <td class="mono muted">{{ u.creado_en | date:'dd/MM/yy' }}</td>
+                        <td style="text-align:right">
+                            @if (u.id !== user()?.id) {
+                            <button class="btn-role-toggle" [class.btn-promote]="u.rol === 'QA_TESTER'"
+                                [class.btn-demote]="u.rol === 'QA_ADMIN'" [disabled]="usuariosBusy().has(u.id)"
+                                (click)="cambiarRol(u.id, u.rol)"
+                                [title]="u.rol === 'QA_ADMIN' ? 'Quitar acceso de administrador' : 'Promover a administrador'">
+                                {{ usuariosBusy().has(u.id) ? '...' : (u.rol === 'QA_ADMIN' ? '↓ Quitar Admin' : '↑
+                                Hacer Admin') }}
+                            </button>
+                            } @else {
+                            <span class="muted" style="font-size:0.78rem">—</span>
+                            }
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+            }
+        </div>
+
+    </main>
+</div>

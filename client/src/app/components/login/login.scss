@@ -1,0 +1,297 @@
+.login-wrapper {
+  display: flex;
+  min-height: 100vh;
+  background: #070e1f;
+  font-family: 'Red Hat Text', 'Segoe UI', sans-serif;
+}
+
+// ── Left panel ──
+.login-left {
+  flex: 1;
+  background: linear-gradient(135deg, #001a6e 0%, #070e1f 60%);
+  border-right: 1px solid #1e3466;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+
+  // Decorative background circles
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.06;
+  }
+
+  &::before {
+    width: 500px;
+    height: 500px;
+    background: #0039e4;
+    top: -150px;
+    left: -150px;
+  }
+
+  &::after {
+    width: 350px;
+    height: 350px;
+    background: #ff8500;
+    bottom: -100px;
+    right: -80px;
+  }
+
+  @media (max-width: 768px) {
+    display: none;
+  }
+}
+
+.brand-block {
+  position: relative;
+  z-index: 1;
+}
+
+.brand-logo-img {
+  height: 56px;
+  width: auto;
+  margin-bottom: 1.25rem;
+  filter: brightness(0) invert(1);
+  display: block;
+}
+
+.brand-tagline {
+  color: #94a3b8;
+  font-size: 1rem;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  position: relative;
+  z-index: 1;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    color: #cbd5e1;
+    font-size: 0.95rem;
+  }
+}
+
+.feat-icon {
+  font-size: 1.1rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.left-footer {
+  color: #475569;
+  font-size: 0.8rem;
+  position: relative;
+  z-index: 1;
+}
+
+// ── Right panel ──
+.login-right {
+  width: 460px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.card-header {
+  text-align: center;
+  margin-bottom: 2rem;
+
+  .card-icon {
+    font-size: 2.2rem;
+    margin-bottom: 0.75rem;
+    filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.4));
+  }
+
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #f8fafc;
+  }
+
+  p {
+    margin: 0;
+    color: #64748b;
+    font-size: 0.875rem;
+  }
+}
+
+.error-banner {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+  animation: fadeIn 0.2s ease;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.form-group {
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:focus-within {
+    border-color: #00c3ff;
+    box-shadow: 0 0 0 3px rgba(0, 195, 255, 0.12);
+  }
+
+  .input-icon {
+    padding: 0 0.85rem;
+    font-size: 0.9rem;
+    color: #475569;
+    flex-shrink: 0;
+  }
+
+  input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 13px 14px 13px 0;
+    color: #f8fafc;
+    font-size: 0.9rem;
+    font-family: inherit;
+
+    &::placeholder {
+      color: #475569;
+    }
+  }
+}
+
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #0039e4, #04dbf1);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: 'Red Hat Display', inherit;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: opacity 0.2s, transform 0.1s;
+  box-shadow: 0 4px 20px rgba(0, 57, 228, 0.35);
+
+  &:hover:not(:disabled) {
+    opacity: 0.92;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 1.25rem;
+  font-size: 0.83rem;
+  color: #8eaed4;
+
+  a {
+    color: #00c3ff;
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}

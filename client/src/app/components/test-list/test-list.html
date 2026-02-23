@@ -1,0 +1,227 @@
+<div class="app-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="/novum.png" alt="Novum" class="brand-logo">
+    </div>
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Menú</span>
+      <a class="nav-item nav-active">
+        <span class="nav-icon">🧪</span> Pruebas - QA
+      </a>
+      @if (isAdmin) {
+      <a class="nav-item" (click)="irAlAdmin()">
+        <span class="nav-icon">📊</span> Admin Stats
+      </a>
+      }
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-block">
+        <div class="user-avatar">{{ user()?.nombre?.charAt(0) }}</div>
+        <div class="user-info">
+          <strong>{{ user()?.nombre }}</strong>
+          <span class="rol-tag">{{ user()?.rol }}</span>
+        </div>
+      </div>
+      <button class="btn-logout" (click)="logout()" title="Cerrar sesión">⏻</button>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main-content">
+
+    <!-- Toast -->
+    @if (toast()) {
+    <div class="toast" [class.toast-success]="toast()!.tipo === 'success'"
+      [class.toast-error]="toast()!.tipo === 'error'">
+      {{ toast()!.texto }}
+    </div>
+    }
+
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Pruebas - QA</h1>
+        <p class="page-sub">{{ tests().length }} prueba{{ tests().length !== 1 ? 's' : '' }} registrada{{ tests().length
+          !== 1 ? 's' : '' }}</p>
+      </div>
+      <button class="btn-primary" (click)="mostrandoGrabador = true">
+        + Grabar nueva prueba
+      </button>
+    </div>
+
+    <!-- ── Modal Grabador ── -->
+    @if (mostrandoGrabador) {
+    <div class="modal-backdrop" (click)="mostrandoGrabador = false">
+      <div class="modal-card" (click)="$event.stopPropagation()">
+        <h2>Nueva Grabación</h2>
+        <p class="modal-sub">Levanta Playwright Codegen y graba el flujo en tu navegador.</p>
+        <div class="form-group">
+          <label>Nombre de la Prueba</label>
+          <input type="text" [(ngModel)]="nuevoTest.nombre" placeholder="Ej: Login de usuario">
+        </div>
+        <div class="form-group">
+          <label>URL de Inicio</label>
+          <input type="text" [(ngModel)]="nuevoTest.url" placeholder="https://...">
+        </div>
+        <div class="modal-actions">
+          <button class="btn-ghost" (click)="mostrandoGrabador = false">Cancelar</button>
+          <button class="btn-primary" [disabled]="cargando" (click)="iniciarGrabacion()">
+            {{ cargando ? '⏳ Levantando Playwright...' : '⏺ Iniciar Grabación' }}
+          </button>
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- ── Modal Video ── -->
+    @if (videoUrl()) {
+    <div class="modal-backdrop" (click)="cerrarVideo()">
+      <div class="video-card" (click)="$event.stopPropagation()">
+        <div class="video-card-header">
+          <h3>Evidencia de Ejecución</h3>
+          <button (click)="cerrarVideo()">✖ Cerrar</button>
+        </div>
+        <video [src]="videoUrl()!" controls autoplay></video>
+      </div>
+    </div>
+    }
+
+    <!-- ── Script Editor ── -->
+    @if (scriptEditorTestId()) {
+    <app-script-editor [testId]="scriptEditorTestId()!" [testNombre]="scriptEditorNombre()"
+      (cerrar)="cerrarScriptEditor()" (ejecutar)="ejecutarDesdeEditor($event)" />
+    }
+
+    <!-- ── Historial ── -->
+    @if (historialTestId()) {
+    <app-execution-history [testId]="historialTestId()!" [testNombre]="historialNombre()"
+      (cerrar)="cerrarHistorial()" />
+    }
+
+    <!-- ── Tabla ── -->
+    @if (tests().length === 0) {
+    <div class="empty-state">
+      <span class="empty-icon">🧪</span>
+      <p>No hay pruebas registradas aún.</p>
+      <p class="empty-sub">Haz clic en "+ Grabar nueva prueba" para comenzar.</p>
+      <button class="btn-primary" (click)="mostrandoGrabador = true">+ Grabar primera prueba</button>
+    </div>
+    } @else {
+    <div class="table-wrapper">
+      <table class="tests-table">
+        <thead>
+          <tr>
+            <th style="width:30%">Prueba</th>
+            <th style="width:28%">URL</th>
+            <th style="width:8%; text-align:center">Ejecuciones</th>
+            <th style="width:14%; text-align:center">Último resultado</th>
+            <th style="width:20%; text-align:right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (test of tests(); track test.id) {
+          <tr [class.row-running]="ejecutandoId() === test.id">
+
+            <!-- Nombre -->
+            <td class="name-col">
+              @if (renombrandoId() === test.id) {
+              <div class="rename-inline">
+                <input class="rename-input" type="text" [value]="nuevoNombre()"
+                  (input)="nuevoNombre.set($any($event.target).value)" (keydown.enter)="confirmarRenombrar(test.id)"
+                  (keydown.escape)="cancelarRenombrar()" autofocus>
+                <button class="btn-icon-sm btn-confirm" (click)="confirmarRenombrar(test.id)"
+                  title="Confirmar">✔</button>
+                <button class="btn-icon-sm btn-cancel" (click)="cancelarRenombrar()" title="Cancelar">✖</button>
+              </div>
+              } @else {
+              <div class="name-wrapper">
+                <span class="test-name">{{ test.nombre }}</span>
+                <button class="btn-rename" (click)="iniciarRenombrar(test)" title="Renombrar">✏</button>
+              </div>
+              }
+              <span class="test-meta">#{{ test.id }} · {{ test.descripcion || 'Sin descripción' }}</span>
+            </td>
+
+            <!-- URL -->
+            <td>
+              <a [href]="test.url_base" target="_blank" class="url-link" title="{{ test.url_base }}">
+                {{ test.url_base }}
+              </a>
+            </td>
+
+            <!-- Ejecuciones -->
+            <td class="center-col">
+              <span class="exec-count">{{ test.total_ejecuciones || 0 }}</span>
+            </td>
+
+            <!-- Estado + fecha -->
+            <td class="center-col">
+              @if (ejecutandoId() === test.id) {
+              <span class="badge badge-running">⏳ Ejecutando</span>
+              } @else if (!test.ultimo_resultado) {
+              <span class="badge badge-none">Sin ejecutar</span>
+              } @else if (test.ultimo_resultado === 'PASSED') {
+              <span class="badge badge-pass">✅ PASSED</span>
+              } @else if (test.ultimo_resultado === 'FAILED') {
+              <span class="badge badge-fail">❌ FAILED</span>
+              } @else {
+              <span class="badge badge-running">⏳ {{ test.ultimo_resultado }}</span>
+              }
+              @if (test.ultima_ejecucion && ejecutandoId() !== test.id) {
+              <span class="last-date">{{ test.ultima_ejecucion | date:'dd/MM HH:mm' }}</span>
+              }
+            </td>
+
+            <!-- Acciones -->
+            <td class="actions-col">
+              <div class="action-group">
+                <button class="act-btn act-code" (click)="abrirScriptEditor(test)"
+                  title="Ver y editar el script de Playwright">
+                  &lt;/&gt; Script
+                </button>
+                <button class="act-btn act-history" (click)="abrirHistorial(test)"
+                  title="Ver historial de ejecuciones y videos">
+                  📋 Historial
+                </button>
+
+                <!-- Control de velocidad -->
+                <div class="speed-control" [class.speed-slow]="getSlowMo(test.id) > 0">
+                  <span class="speed-icon">{{ getSlowMo(test.id) === 0 ? '⚡' : getSlowMo(test.id) <= 500 ? '🐌' :
+                      getSlowMo(test.id) <=1000 ? '🐢' : '🦥' }}</span>
+                      <select class="speed-select" [value]="getSlowMo(test.id)"
+                        (change)="setSlowMo(test.id, +$any($event.target).value)"
+                        [disabled]="ejecutandoId() === test.id" title="Velocidad de ejecución">
+                        <option value="0">Normal</option>
+                        <option value="300">Lento · 300ms</option>
+                        <option value="800">Semi-lento · 800ms</option>
+                        <option value="1200">Muy lento · 1200ms</option>
+                        <option value="1800">Ultra lento · 1800ms</option>
+                      </select>
+                </div>
+
+                <button class="act-btn act-run" [class.act-run-slow]="getSlowMo(test.id) > 0"
+                  [disabled]="ejecutandoId() === test.id" (click)="ejecutarTest(test.id)"
+                  [title]="getSlowMo(test.id) > 0 ? 'Ejecutar en modo lento — ' + getSlowMo(test.id) + 'ms entre pasos' : 'Ejecutar a velocidad normal (headless)'">
+                  @if (ejecutandoId() === test.id) {
+                  ⏳ Ejecutando...
+                  } @else {
+                  ▶ Ejecutar
+                  }
+                </button>
+
+                <button class="act-btn act-delete" (click)="eliminarTest(test.id)"
+                  title="Eliminar prueba y sus evidencias">
+                  🗑
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </main>
+</div>

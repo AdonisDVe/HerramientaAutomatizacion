@@ -1,0 +1,59 @@
+<div class="login-wrapper">
+  <!-- Left panel - branding -->
+  <div class="login-left">
+    <div class="brand-block">
+      <img src="/novum.png" alt="Novum" class="brand-logo-img">
+      <p class="brand-tagline">Plataforma de automatización de pruebas</p>
+    </div>
+    <ul class="feature-list">
+      <li><span class="feat-icon">🎬</span> Graba flujos con Playwright Codegen</li>
+      <li><span class="feat-icon">▶</span> Ejecuta pruebas y genera evidencias en video</li>
+      <li><span class="feat-icon">📋</span> Historial completo de ejecuciones</li>
+      <li><span class="feat-icon">📊</span> Dashboard de estadísticas para administradores</li>
+    </ul>
+    <div class="left-footer">Sirio · Automatización inteligente</div>
+  </div>
+
+  <!-- Right panel - form -->
+  <div class="login-right">
+    <div class="login-card">
+      <div class="card-header">
+        <div class="card-icon">⚡</div>
+        <h2>Iniciar Sesión</h2>
+        <p>Acceso restringido al Hangar de QA</p>
+      </div>
+
+      @if (error()) {
+      <div class="error-banner">{{ error() }}</div>
+      }
+
+      <form (submit)="onLogin($event)" class="login-form">
+        <div class="form-group">
+          <label for="email">Correo Electrónico</label>
+          <div class="input-wrapper">
+            <span class="input-icon">✉</span>
+            <input id="email" type="email" name="email" placeholder="usuario@empresa.com" required autocomplete="email">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input id="password" type="password" name="password" placeholder="••••••••" required
+              autocomplete="current-password">
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" [disabled]="cargando()">
+          @if (cargando()) {
+          <span class="spinner-sm"></span> Verificando...
+          } @else {
+          Ingresar al Sistema →
+          }
+        </button>
+      </form>
+      <p class="register-link">¿No tienes cuenta? <a routerLink="/register">Crear cuenta</a></p>
+    </div>
+  </div>
+</div>
