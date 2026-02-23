@@ -108,7 +108,7 @@ export class TestListComponent implements OnInit {
         this.cargar();
         this.mostrarToast('Test creado. Ya puedes editar su código.', 'success');
       },
-      error: (err) => {
+      error: (err: any) => {
         this.cargando = false;
         this.mostrarToast('Error al crear el test manual', 'error');
       }

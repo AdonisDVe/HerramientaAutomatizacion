@@ -25,6 +25,11 @@ export class TestService {
     return this.http.post<any>(`${this.apiUrl}/record`, datos, { headers: this.getHeaders() });
   }
 
+  // ── Crear test manualmente (sin grabador) ──
+  createManualTest(datos: { nombre: string; url: string }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/manual`, datos, { headers: this.getHeaders() });
+  }
+
   // ── Ejecutar robot ──
   runTest(testId: number, slowMo: number = 0): Observable<any> {
     return this.http.post<any>(`${this.apiUrl}/${testId}/run`, { slowMo }, { headers: this.getHeaders() });
