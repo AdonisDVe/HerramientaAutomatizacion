@@ -169,18 +169,81 @@ exports.executeTest = async (req, res) => {
                 [ejecucionId, 'VIDEO', result.video]
             );
 
+            // Guardar capturas en la BD
+            if (result.capturas && result.capturas.length > 0) {
+                for (const captura of result.capturas) {
+                    await db.query(
+                        'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                        [ejecucionId, 'SCREENSHOT', captura]
+                    );
+                }
+            }
+
+            const capturasUrls = (result.capturas || []).map(c => `${SERVER_URL}/evidencias/${c}`);
+
             res.json({
                 message: 'Ejecución terminada',
                 status: 'PASSED',
-                videoUrl: `${SERVER_URL}/evidencias/${result.video}`
+                videoUrl: `${SERVER_URL}/evidencias/${result.video}`,
+                capturas: capturasUrls
             });
         } catch (execError) {
             const duracionTotal = Date.now() - inicioMs;
+            console.error(`❌ Ejecución fallida para Test #${testId}:`, execError.message);
+
+            // Limpiar el mensaje de error
+            const errorMsg = execError.message
+                ? execError.message
+                    .replace(/^Command failed:[^\n]*\n/, '')
+                    .replace(/node:internal[^\n]*/g, '')
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim()
+                    .substring(0, 2000)
+                : 'Error desconocido';
+
             await db.query(
-                'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW() WHERE id = ?',
-                ['FAILED', duracionTotal, ejecucionId]
+                'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW(), error_log = ? WHERE id = ?',
+                ['FAILED', duracionTotal, errorMsg, ejecucionId]
             );
-            res.status(500).json({ error: 'El robot falló durante la ejecución.', status: 'FAILED' });
+
+            // Guardar evidencias del fallo si las hay (video parcial + captura del fallo)
+            const failEvidence = execError.evidence || {};
+            const failVideo = failEvidence.video || null;
+            const failCapturas = failEvidence.capturas || [];
+
+            console.log(`🔍 Evidencia de fallo encontrada: Video=${!!failVideo}, Capturas=${failCapturas.length}`);
+
+            if (failVideo) {
+                try {
+                    await db.query(
+                        'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                        [ejecucionId, 'VIDEO', failVideo]
+                    );
+                    console.log('✅ Video de fallo guardado en BD.');
+                } catch (dbErr) {
+                    console.error('🔥 Error al guardar video de fallo en BD:', dbErr.message);
+                }
+            }
+
+            for (const cap of failCapturas) {
+                try {
+                    await db.query(
+                        'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                        [ejecucionId, 'SCREENSHOT', cap]
+                    );
+                } catch (dbErr) {
+                    console.error('🔥 Error al guardar captura de fallo en BD:', dbErr.message);
+                }
+            }
+            if (failCapturas.length > 0) console.log(`✅ ${failCapturas.length} capturas de fallo guardadas en BD.`);
+
+            res.status(500).json({
+                error: 'El robot falló durante la ejecución.',
+                status: 'FAILED',
+                errorDetail: errorMsg,
+                videoUrl: failVideo ? `${SERVER_URL}/evidencias/${failVideo}` : null,
+                capturas: failCapturas.map(c => `${SERVER_URL}/evidencias/${c}`)
+            });
         }
     } catch (error) {
         console.error('🔥 Error en la ejecución:', error.message);

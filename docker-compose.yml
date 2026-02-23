@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: mysql:8.0
@@ -12,41 +10,13 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-
-  backend:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    container_name: sirio_backend
-    restart: always
-    ports:
-      - "3001:3001"
-    environment:
-      - PORT=3001
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=sirio_root_pass
-      - DB_NAME=sirioqa
-      # Cambiar esto por tu IP de VPS o dominio real en el futuro
-      - SERVER_URL=http://localhost:3000
-    volumes:
-      # Montar directorios para que las grabaciones/tests persistan si se reinicia el contenedor
-      - ./server/evidencias:/app/evidencias
-      - ./server/tests_historicos:/app/tests_historicos
-      - ./server/temp:/app/temp
-    depends_on:
-      - db
-
-  frontend:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    container_name: sirio_frontend
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
+      - ./server/config/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-psirio_root_pass" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   mysql_data:

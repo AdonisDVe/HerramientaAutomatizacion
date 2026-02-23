@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS ejecuciones (
     ejecutado_por INT,
     resultado VARCHAR(50) NOT NULL,
     duracion_ms INT,
+    error_log TEXT DEFAULT NULL,
     iniciado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     finalizado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,

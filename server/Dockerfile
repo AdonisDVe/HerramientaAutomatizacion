@@ -1,19 +1,22 @@
-# Usamos la imagen oficial de Playwright que contiene Node.js 20 y
-# todas las dependencias del sistema operativo (Linux) necesarias para navegadores headless
-FROM mcr.microsoft.com/playwright:v1.43.0-jammy
+FROM mcr.microsoft.com/playwright:v1.58.2-jammy
+
+# Xvfb (display virtual), VNC y noVNC para el grabador
+RUN apt-get update && apt-get install -y \
+    xvfb \
+    x11vnc \
+    novnc \
+    websockify \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copiamos logs y configuración
 COPY package*.json ./
-
-# Instalamos las dependencias
 RUN npm install
 
-# Copiamos el resto del código
 COPY . .
 
-# Variables de entorno por defecto
+RUN chmod +x /app/start.sh
+
 ENV PORT=3001
 ENV SERVER_URL=http://localhost:3001
 ENV DB_HOST=db
@@ -21,9 +24,8 @@ ENV DB_USER=root
 ENV DB_PASSWORD=sirio_root_pass
 ENV DB_NAME=sirioqa
 ENV JWT_SECRET=sirioqa_super_secret_jwt_key_2024_!
+ENV DISPLAY=:99
 
-# Exportamos puerto 3001
-EXPOSE 3001
+EXPOSE 3001 6080
 
-# Comando de inicio
-CMD ["npm", "start"]
+CMD ["/app/start.sh"]

@@ -67,35 +67,94 @@
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" (click)="mostrandoGrabador = false" [disabled]="cargando">Cancelar</button>
-
-          <div class="modal-btn-group">
-            <button class="btn-primary btn-outline" (click)="crearManual()"
-              [disabled]="cargando || !nuevoTest.nombre || !nuevoTest.url"
-              title="Crea el test vacío para pegar el código después">
-              @if (cargando) { <span class="loader"></span> }
-              @else { ✍️ Crear Manualmente }
-            </button>
-            <button class="btn-primary" (click)="iniciarGrabacion()"
-              [disabled]="cargando || !nuevoTest.nombre || !nuevoTest.url"
-              title="Requiere entorno local con escritorio">
-              @if (cargando) { <span class="loader"></span> }
-              @else { 🔴 Iniciar Grabador }
-            </button>
-          </div>
+          <button class="btn-primary" (click)="iniciarGrabacion()"
+            [disabled]="cargando || !nuevoTest.nombre || !nuevoTest.url"
+            title="Levanta Playwright Codegen para grabar el flujo">
+            @if (cargando) { <span class="loader"></span> Esperando grabación... }
+            @else { 🔴 Iniciar Grabador }
+          </button>
         </div>
       </div>
     </div>
     }
 
-    <!-- ── Modal Video ── -->
+    <!-- ── Modal Video + Capturas ── -->
     @if (videoUrl()) {
     <div class="modal-backdrop" (click)="cerrarVideo()">
       <div class="video-card" (click)="$event.stopPropagation()">
         <div class="video-card-header">
-          <h3>Evidencia de Ejecución</h3>
+          <h3>📹 Evidencia de Ejecución</h3>
           <button (click)="cerrarVideo()">✖ Cerrar</button>
         </div>
         <video [src]="videoUrl()!" controls autoplay></video>
+
+        @if (capturas().length > 0) {
+        <div class="capturas-section">
+          <div class="capturas-header">
+            <h4>📸 Capturas por paso ({{ capturas().length }})</h4>
+            <button class="btn-download-all" (click)="downloadAllCapturas()">
+              ⬇ Descargar todas
+            </button>
+          </div>
+          <div class="capturas-grid">
+            @for (cap of capturas(); track cap; let i = $index) {
+            <div class="captura-item">
+              <img [src]="cap" [alt]="'Paso ' + (i + 1)" (click)="capturaSel.set(cap)" />
+              <div class="captura-actions">
+                <span class="captura-label">Paso {{ i + 1 }}</span>
+                <button class="btn-dl-single" (click)="downloadCaptura(cap, i)" title="Descargar">⬇</button>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+    }
+
+    <!-- Lightbox de captura -->
+    @if (capturaSel()) {
+    <div class="lightbox-backdrop" (click)="capturaSel.set(null)">
+      <div class="lightbox-inner" (click)="$event.stopPropagation()">
+        <img [src]="capturaSel()!" alt="Captura ampliada" />
+        <button class="lightbox-download" (click)="downloadCaptura(capturaSel()!, capturas().indexOf(capturaSel()!))">
+          ⬇ Descargar
+        </button>
+      </div>
+    </div>
+    }
+
+    <!-- ── Modal Error de Ejecución ── -->
+    @if (errorDetail()) {
+    <div class="modal-backdrop" (click)="errorDetail.set(null)">
+      <div class="error-modal" (click)="$event.stopPropagation()">
+        <div class="error-modal-header">
+          <span>❌ Fallo en la Ejecución</span>
+          <button class="btn-close-error" (click)="errorDetail.set(null)">✖</button>
+        </div>
+
+        @if (capturas().length > 0) {
+        <div class="error-evidence-preview">
+          <p class="evidence-label">📸 Evidencia visual del error:</p>
+          <div class="evidence-img-container" (click)="capturaSel.set(capturas()[capturas().length - 1])">
+            <img [src]="capturas()[capturas().length - 1]" alt="Fallo">
+            <div class="img-overlay">🔍 Click para ampliar</div>
+          </div>
+        </div>
+        }
+
+        <p class="error-modal-hint">Detalle del error capturado por el robot:</p>
+        <pre class="error-log">{{ errorDetail() }}</pre>
+        <div class="error-modal-footer">
+          @if (videoUrl()) {
+          <button class="btn-video-quick" (click)="errorDetail.set(null)"
+            style="margin-right: auto; background: rgba(0, 195, 255, 0.1); color: #00c3ff; border: 1px solid rgba(0, 195, 255, 0.3); padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.1rem;">📹</span> Ver video del error
+          </button>
+          }
+          <button class="btn-secondary" (click)="errorDetail.set(null)">Cerrar</button>
+        </div>
       </div>
     </div>
     }
