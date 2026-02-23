@@ -1,0 +1,40 @@
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_completo VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    rol ENUM('QA_TESTER', 'QA_ADMIN') DEFAULT 'QA_TESTER',
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    url_base VARCHAR(500) NOT NULL,
+    descripcion TEXT,
+    script_codigo TEXT NOT NULL,
+    creado_por INT,
+    estado ENUM('ACTIVO', 'INACTIVO') DEFAULT 'ACTIVO',
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (creado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS ejecuciones (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    test_id INT,
+    ejecutado_por INT,
+    resultado ENUM('EXITO', 'FALLIDO') NOT NULL,
+    iniciado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fin_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
+    FOREIGN KEY (ejecutado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS evidencias_archivos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    ejecucion_id INT,
+    tipo_archivo ENUM('VIDEO', 'SCREENSHOT', 'LOG'),
+    ruta_archivo VARCHAR(500) NOT NULL,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ejecucion_id) REFERENCES ejecuciones(id) ON DELETE CASCADE
+);
