@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS ejecuciones (
     test_id INT,
     ejecutado_por INT,
     resultado ENUM('EXITO', 'FALLIDO') NOT NULL,
+    duracion_ms INT,
     iniciado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     fin_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
