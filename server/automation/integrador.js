@@ -11,6 +11,54 @@ if (!fs.existsSync(tempPath)) fs.mkdirSync(tempPath, { recursive: true });
 if (!fs.existsSync(evidencePath)) fs.mkdirSync(evidencePath, { recursive: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Espera activa hasta que el archivo de video deje de crecer en disco.
+// Playwright escribe el .webm de forma asíncrona después de browser.close(),
+// por lo que un setTimeout fijo no es suficiente en pruebas exitosas largas.
+// ─────────────────────────────────────────────────────────────────────────────
+async function waitForVideoReady(videoDir, { maxWaitMs = 15000, pollMs = 300, stableMs = 600 } = {}) {
+    const deadline = Date.now() + maxWaitMs;
+    let lastSize = -1;
+    let stableSince = null;
+
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, pollMs));
+
+        if (!fs.existsSync(videoDir)) continue;
+
+        const videos = fs.readdirSync(videoDir).filter(f => f.endsWith('.webm'));
+        if (videos.length === 0) continue;
+
+        const filePath = path.join(videoDir, videos[0]);
+        let currentSize = 0;
+        try {
+            currentSize = fs.statSync(filePath).size;
+        } catch (_) { continue; }
+
+        if (currentSize > 0 && currentSize === lastSize) {
+            if (!stableSince) {
+                stableSince = Date.now();
+            } else if (Date.now() - stableSince >= stableMs) {
+                console.log(`✅ Video listo (${currentSize} bytes, estable por ${stableMs}ms)`);
+                return videos[0];
+            }
+        } else {
+            stableSince = null;
+        }
+        lastSize = currentSize;
+    }
+
+    // Timeout: devolvemos lo que haya aunque no esté estable
+    if (fs.existsSync(videoDir)) {
+        const videos = fs.readdirSync(videoDir).filter(f => f.endsWith('.webm'));
+        if (videos.length > 0) {
+            console.warn(`⚠️  waitForVideoReady: timeout alcanzado, usando video disponible`);
+            return videos[0];
+        }
+    }
+    return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. MODO GRABACIÓN
 // ─────────────────────────────────────────────────────────────────────────────
 async function recordScript(url) {
@@ -117,13 +165,13 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
             if (closePattern.test(modified)) {
                 modified = modified.replace(
                     closePattern,
-                    `} catch (__e) {\n    __sirio_err = __e;\n    console.error('❌ Error capturado en el script:', __e.message);\n    try {\n      if (typeof page !== 'undefined') {\n         await page.screenshot({ path: require('path').join('${capturasDirClean}', 'ZZZ_FAILURE.png'), fullPage: true });\n      }\n    } catch (err) {}\n  } finally {\n    try { if (typeof context !== 'undefined') await context.close(); } catch(e) {}\n    try { if (typeof browser !== 'undefined') await browser.close(); } catch(e) {}\n    console.log('🏁 Limpieza de Playwright completada');\n  }\n  if (__sirio_err) throw __sirio_err;`
+                    `} catch (__e) {\n    __sirio_err = __e;\n    console.error('❌ Error capturado en el script:', __e.message);\n    try {\n      if (typeof page !== 'undefined') {\n         await page.screenshot({ path: require('path').join('${capturasDirClean}', 'ZZZ_FAILURE.png'), fullPage: true });\n      }\n    } catch (err) {}\n  } finally {\n    try { if (typeof context !== 'undefined') await context.close(); } catch(e) {}\n    try { if (typeof browser !== 'undefined') await browser.close(); } catch(e) {}\n    console.log('🏁 Limpieza de Playwright completada');\n  }\n  if (__sirio_err) { process.exitCode = 1; process.exit(1); }\n  process.exit(0);`
                 );
             } else {
                 // Fallback: inyectar antes del final de la función IIFE
                 modified = modified.replace(
                     /(\}\)\(\);?\s*$)/,
-                    `} catch (__e) {\n    __sirio_err = __e;\n    try { if (typeof page !== 'undefined') await page.screenshot({ path: require('path').join('${capturasDirClean}', 'ZZZ_FAILURE.png'), fullPage: true }); } catch (_) {}\n  } finally {\n    try { if (typeof context !== 'undefined') await context.close(); } catch(e) {}\n    try { if (typeof browser !== 'undefined') await browser.close(); } catch(e) {}\n  }\n  if (__sirio_err) throw __sirio_err;\n$1`
+                    `} catch (__e) {\n    __sirio_err = __e;\n    try { if (typeof page !== 'undefined') await page.screenshot({ path: require('path').join('${capturasDirClean}', 'ZZZ_FAILURE.png'), fullPage: true }); } catch (_) {}\n  } finally {\n    try { if (typeof context !== 'undefined') await context.close(); } catch(e) {}\n    try { if (typeof browser !== 'undefined') await browser.close(); } catch(e) {}\n  }\n  if (__sirio_err) { process.exitCode = 1; process.exit(1); }\n  process.exit(0);\n$1`
                 );
             }
         }
@@ -132,29 +180,37 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
         fs.writeFileSync(tempFile, modified);
 
         let executionError = null;
+        const t0 = Date.now();
         try {
             await execPromise(`node "${tempFile}"`, { timeout: 120000 });
+            console.log(`⏱️  Script ejecutado en ${Date.now() - t0}ms`);
         } catch (execErr) {
-            console.error('❌ El proceso de Node falló:', execErr.message);
+            console.error(`❌ El proceso de Node falló (${Date.now() - t0}ms):`, execErr.message);
             executionError = execErr;
         }
 
-        // Esperar a que el sistema de archivos se estabilice
-        await new Promise(r => setTimeout(r, 1000));
+        // Esperar a que Playwright termine de escribir el video en disco.
+        // En ejecuciones exitosas el video se codifica de forma asíncrona tras
+        // browser.close(), por lo que usamos espera activa en lugar de un
+        // setTimeout fijo que resultaba insuficiente para pruebas largas.
+        const t1 = Date.now();
+        console.log(`⏳ Esperando que el video quede listo en disco...`);
+        const videoFile = await waitForVideoReady(videoDir, {
+            maxWaitMs: 15000,   // espera máxima de 15 s
+            pollMs: 300,        // revisa cada 300 ms
+            stableMs: 600       // considera listo cuando el tamaño no cambia por 600 ms
+        });
+        console.log(`⏱️  Video listo en ${Date.now() - t1}ms`);
 
-        // Buscar el video en su subcarpeta dedicada
+        // Mover el video de la subcarpeta a la carpeta principal de evidencias
         let videoFileName = null;
-        if (fs.existsSync(videoDir)) {
-            const videos = fs.readdirSync(videoDir).filter(f => f.endsWith('.webm'));
-            if (videos.length > 0) {
-                // Mover el video de la subcarpeta a la carpeta principal de evidencias para que el frontend lo vea
-                const originalPath = path.join(videoDir, videos[0]);
-                videoFileName = `${videoDirName}.webm`;
-                const newPath = path.join(evidencePath, videoFileName);
-                fs.copyFileSync(originalPath, newPath);
-                // Limpiar subcarpeta de video
-                try { fs.rmSync(videoDir, { recursive: true, force: true }); } catch (e) { }
-            }
+        if (videoFile) {
+            const originalPath = path.join(videoDir, videoFile);
+            videoFileName = `${videoDirName}.webm`;
+            const newPath = path.join(evidencePath, videoFileName);
+            fs.copyFileSync(originalPath, newPath);
+            // Limpiar subcarpeta de video
+            try { fs.rmSync(videoDir, { recursive: true, force: true }); } catch (e) { }
         }
 
         // Listar capturas
