@@ -3,12 +3,18 @@ const path = require('path');
 const fs = require('fs');
 const util = require('util');
 const execPromise = util.promisify(exec);
+const { EventEmitter } = require('events');
+
+const liveLogsEmitter = new EventEmitter();
+liveLogsEmitter.setMaxListeners(100);
 
 const tempPath = path.resolve(__dirname, '../temp');
 const evidencePath = path.resolve(__dirname, '../evidencias');
+const storagePath = path.resolve(__dirname, '../storage');
 
 if (!fs.existsSync(tempPath)) fs.mkdirSync(tempPath, { recursive: true });
 if (!fs.existsSync(evidencePath)) fs.mkdirSync(evidencePath, { recursive: true });
+if (!fs.existsSync(storagePath)) fs.mkdirSync(storagePath, { recursive: true });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Espera activa hasta que el archivo de video deje de crecer en disco.
@@ -95,60 +101,69 @@ async function recordScript(url) {
 // 2. MODO EJECUCIÓN
 //    Siempre guarda video y capturas, incluso si la prueba falla.
 // ─────────────────────────────────────────────────────────────────────────────
-async function executeScript(scriptContent, testId, slowMo = 0) {
+async function executeScript(scriptContent, testId, slowMo = 0, contextOpts = {}) {
     const timestamp = Date.now();
+    const ejecucionId = contextOpts.ejecucionId || timestamp;
+    const projName = (contextOpts.proyectoNombre || 'Default').replace(/[^a-zA-Z0-9_]/g, '_');
+    const userName = contextOpts.usuarioNombre || 'Sistema';
+
     console.log(`🤖 Ejecutando script para Test ID: ${testId} | slowMo: ${slowMo}ms`);
 
     const tempFile = path.join(tempPath, `run_${testId}_${timestamp}.js`);
-    const capturasDirName = `capturas_${testId}_${timestamp}`;
-    const videoDirName = `video_${testId}_${timestamp}`;
+    const runDir = path.join(storagePath, projName, `exec_${ejecucionId}`);
 
-    const capturasDir = path.join(evidencePath, capturasDirName);
-    const videoDir = path.join(evidencePath, videoDirName);
+    try {
+        fs.mkdirSync(runDir, { recursive: true });
+    } catch (err) {
+        console.error('❌ Error creando carpeta storage:', err.message);
+        if (ejecucionId) liveLogsEmitter.emit('log', { ejecucionId, type: 'stderr', chunk: `Error Storage: ${err.message}` });
+    }
 
+    const capturasDir = path.join(runDir, "capturas");
+    const videoDir = runDir; // Video and trace en raiz de ejecución
     fs.mkdirSync(capturasDir, { recursive: true });
-    fs.mkdirSync(videoDir, { recursive: true });
 
-    const videoDirClean = videoDir.replace(/\\/g, '/');
+    const runDirClean = runDir.replace(/\\/g, '/');
     const capturasDirClean = capturasDir.replace(/\\/g, '/');
 
     try {
         let modified = scriptContent;
 
-        // 1. headless + slowMo
-        if (slowMo > 0) {
-            modified = modified.replace(/headless:\s*(true|false)/g, `headless: false, slowMo: ${slowMo}`);
-        } else {
-            modified = modified.replace(/headless:\s*(true|false)/g, 'headless: true');
-        }
-        if (!/headless:/.test(modified)) {
-            const headlessVal = slowMo > 0 ? `false, slowMo: ${slowMo}` : 'true';
-            modified = modified
-                .replace(/chromium\.launch\(\{/, `chromium.launch({ headless: ${headlessVal},`)
-                .replace(/chromium\.launch\(\)/, `chromium.launch({ headless: ${headlessVal} })`);
-        }
+        // 1. headless + slowMo explícito
+        const browserArgs = slowMo > 0 ? `{ headless: true, slowMo: ${slowMo}, args: ['--no-sandbox', '--disable-dev-shm-usage'] }` : `{ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] }`;
+        modified = modified
+            .replace(/headless:\s*(false|true)/gi, 'headless: true') // Force explicit properties first
+            .replace(/chromium\.launch\(\{[\s\S]*?\}\)/g, `chromium.launch(${browserArgs})`)
+            .replace(/chromium\.launch\(\)/g, `chromium.launch(${browserArgs})`);
 
-        // 2. Flags de memoria
-        modified = modified.replace(
-            /chromium\.launch\(\{/g,
-            `chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'],`
-        );
-
-        // 3. Grabación de video (A una carpeta específica para este test)
+        // 3. Grabación de video y context (Traces)
         modified = modified
             .replace(/browser\.newContext\(\)/g,
-                `browser.newContext({ recordVideo: { dir: '${videoDirClean}', size: { width: 1280, height: 720 } } })`)
+                `browser.newContext({ recordVideo: { dir: '${runDirClean}', size: { width: 1280, height: 720 } } })`)
             .replace(/browser\.newContext\(\{/g,
-                `browser.newContext({ recordVideo: { dir: '${videoDirClean}', size: { width: 1280, height: 720 } },`);
+                `browser.newContext({ recordVideo: { dir: '${runDirClean}', size: { width: 1280, height: 720 } },`);
 
-        // 4. Capturas después de cada acción de página (mejorado el regex)
+        // Inyectar inicio y fin de Traza
+        if (modified.includes('browser.newContext')) {
+            modified = modified.replace(
+                /(const context = await browser\.newContext.*?);/g,
+                `$1\n  await context.tracing.start({ screenshots: true, snapshots: true, sources: true });`
+            );
+            modified = modified.replace(
+                /(await context\.close\(\);)/g,
+                `await context.tracing.stop({ path: require('path').join('${runDirClean}', 'trace.zip') });\n  $1`
+            );
+        }
+
+        // 4. Capturas y Logs después de cada acción de página
         let stepNum = 0;
         modified = modified.replace(
             /^(\s*)(await page\.(?!screenshot|waitFor|pause|close)[^\n]+;)\s*$/gm,
             (match, indent, action) => {
                 stepNum++;
                 const num = String(stepNum).padStart(3, '0');
-                return `${indent}${action}\n${indent}try { await page.screenshot({ path: require('path').join('${capturasDirClean}', 'paso_${num}.png'), fullPage: false }); } catch(_) {}`;
+                const logAction = action.replace(/'/g, "\\'").trim();
+                return `${indent}console.log('➡️ Acción ${num}: ${logAction}');\n${indent}${action}\n${indent}try { await page.screenshot({ path: require('path').join('${capturasDirClean}', 'paso_${num}.png'), fullPage: false }); } catch(_) {}`;
             }
         );
 
@@ -180,57 +195,97 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
         fs.writeFileSync(tempFile, modified);
 
         let executionError = null;
+        let execStdout = '';
+        let execStderr = '';
         const t0 = Date.now();
         try {
-            await execPromise(`node "${tempFile}"`, { timeout: 120000 });
+            await new Promise((resolve, reject) => {
+                const { spawn } = require('child_process');
+                const child = spawn('node', [tempFile]);
+
+                const timeoutId = setTimeout(() => {
+                    child.kill();
+                    reject(new Error(`Timeout de 120000ms excedido`));
+                }, 120000);
+
+                child.stdout.on('data', (data) => {
+                    const text = data.toString();
+                    execStdout += text;
+                    if (ejecucionId) {
+                        liveLogsEmitter.emit('log', { ejecucionId, type: 'stdout', chunk: text });
+                    }
+                });
+
+                child.stderr.on('data', (data) => {
+                    const text = data.toString();
+                    execStderr += text;
+                    if (ejecucionId) {
+                        liveLogsEmitter.emit('log', { ejecucionId, type: 'stderr', chunk: text });
+                    }
+                });
+
+                child.on('close', (code) => {
+                    clearTimeout(timeoutId);
+                    if (code !== 0) {
+                        const err = new Error(`El proceso de Node terminó con código ${code}`);
+                        err.stdout = execStdout;
+                        err.stderr = execStderr;
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+
+                child.on('error', (err) => {
+                    clearTimeout(timeoutId);
+                    reject(err);
+                });
+            });
             console.log(`⏱️  Script ejecutado en ${Date.now() - t0}ms`);
         } catch (execErr) {
             console.error(`❌ El proceso de Node falló (${Date.now() - t0}ms):`, execErr.message);
             executionError = execErr;
+            if (executionError.stdout === undefined) executionError.stdout = execStdout;
+            if (executionError.stderr === undefined) executionError.stderr = execStderr;
         }
 
-        // Esperar a que Playwright termine de escribir el video en disco.
-        // En ejecuciones exitosas el video se codifica de forma asíncrona tras
-        // browser.close(), por lo que usamos espera activa en lugar de un
-        // setTimeout fijo que resultaba insuficiente para pruebas largas.
         const t1 = Date.now();
         console.log(`⏳ Esperando que el video quede listo en disco...`);
-        const videoFile = await waitForVideoReady(videoDir, {
-            maxWaitMs: 15000,   // espera máxima de 15 s
-            pollMs: 300,        // revisa cada 300 ms
-            stableMs: 600       // considera listo cuando el tamaño no cambia por 600 ms
+        const videoFile = await waitForVideoReady(runDir, {
+            maxWaitMs: 15000,
+            pollMs: 300,
+            stableMs: 600
         });
-        console.log(`⏱️  Video listo en ${Date.now() - t1}ms`);
 
-        // Mover el video de la subcarpeta a la carpeta principal de evidencias
-        let videoFileName = null;
-        if (videoFile) {
-            const originalPath = path.join(videoDir, videoFile);
-            videoFileName = `${videoDirName}.webm`;
-            const newPath = path.join(evidencePath, videoFileName);
-            fs.copyFileSync(originalPath, newPath);
-            // Limpiar subcarpeta de video
-            try { fs.rmSync(videoDir, { recursive: true, force: true }); } catch (e) { }
-        }
+        const videoRelativePath = videoFile ? `${projName}/exec_${ejecucionId}/${videoFile}` : null;
 
-        // Listar capturas
         const capturas = fs.existsSync(capturasDir)
             ? fs.readdirSync(capturasDir)
                 .filter(f => f.endsWith('.png'))
                 .sort()
-                .map(f => `${capturasDirName}/${f}`)
+                .map(f => `${projName}/exec_${ejecucionId}/capturas/${f}`)
             : [];
-
-        console.log(`🎥 Video final: ${videoFileName || 'ninguno'} | 📸 Capturas: ${capturas.length}`);
 
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
 
+        // Registro Historial Demo-Ready
+        try {
+            const histLog = {
+                usuario: userName,
+                proyecto: projName,
+                fecha: new Date().toISOString(),
+                estado: executionError ? 'FALLIDO' : 'EXITO',
+                ruta: runDirClean
+            };
+            fs.appendFileSync(path.join(storagePath, 'historial.json'), JSON.stringify(histLog) + '\\n');
+        } catch (e) { }
+
         if (executionError) {
-            executionError.evidence = { video: videoFileName, capturas };
+            executionError.evidence = { video: videoRelativePath, capturas };
             throw executionError;
         }
 
-        return { success: true, video: videoFileName, capturas, capturasDirName };
+        return { success: true, video: videoRelativePath, capturas };
 
     } catch (error) {
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
@@ -238,4 +293,4 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
     }
 }
 
-module.exports = { recordScript, executeScript };
+module.exports = { recordScript, executeScript, liveLogsEmitter };
