@@ -67,10 +67,16 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
         // Guardamos el archivo modificado
         fs.writeFileSync(tempFile, modifiedScript);
 
-        // Ejecutamos el archivo
-        await execPromise(`node "${tempFile}"`);
+        // Ejecutamos el archivo y capturamos logs
+        let scriptError = null;
+        try {
+            await execPromise(`node "${tempFile}"`);
+        } catch (execErr) {
+            console.error('⚠️ El script de QA falló durante la ejecución.');
+            scriptError = execErr;
+        }
 
-        // Buscamos el video generado más reciente
+        // Buscamos el video generado (incluso si falló, Playwright suele guardar hasta el punto de fallo)
         const files = fs.readdirSync(evidencePath)
             .filter(f => f.endsWith('.webm'))
             .map(f => ({ file: f, time: fs.statSync(path.join(evidencePath, f)).mtime.getTime() }))
@@ -81,10 +87,18 @@ async function executeScript(scriptContent, testId, slowMo = 0) {
         // Limpiamos el archivo temporal
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
 
+        if (scriptError) {
+            return {
+                success: false,
+                video: videoFileName,
+                log: scriptError.stdout + '\n' + scriptError.stderr
+            };
+        }
+
         return { success: true, video: videoFileName };
     } catch (error) {
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        console.error('❌ Error en Ejecución del Script:', error.message);
+        console.error('❌ Error fatal en inicialización del Script:', error.message);
         throw error;
     }
 }
