@@ -81,8 +81,9 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">Pruebas - QA</h1>
-        <p class="page-sub">{{ filteredTests.length }} prueba{{ filteredTests.length !== 1 ? 's' : '' }} registrada{{
-          filteredTests.length !== 1 ? 's' : '' }}</p>
+        <p class="page-sub">{{ filteredTests().length }} prueba{{ filteredTests().length !== 1 ? 's' : '' }}
+          registrada{{
+          filteredTests().length !== 1 ? 's' : '' }}</p>
       </div>
       <button class="btn-primary" (click)="mostrandoGrabador = true">
         + Grabar nueva prueba
@@ -151,7 +152,7 @@
     }
 
     <!-- ── Tabla ── -->
-    @if (filteredTests.length === 0) {
+    @if (filteredTests().length === 0) {
     <div class="empty-state">
       <span class="empty-icon">🧪</span>
       <p>No hay pruebas registradas en esta vista.</p>
@@ -171,7 +172,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (test of filteredTests; track test.id) {
+          @for (test of filteredTests(); track test.id) {
           <tr [class.row-running]="ejecutandoId() === test.id">
 
             <!-- Nombre -->
