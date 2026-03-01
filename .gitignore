@@ -5,3 +5,9 @@ evidencias/
 .env
 users.json
 data/
+server/storage/
+server/temp/
+server/evidencias/
+**/*.zip
+**/*.png
+**/*.webm
