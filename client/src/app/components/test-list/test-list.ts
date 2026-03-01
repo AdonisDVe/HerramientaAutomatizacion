@@ -27,11 +27,8 @@ export class TestListComponent implements OnInit {
   mostrandoGrabador = false;
   nuevoTest = { nombre: '', url: '' };
 
-  // Modal video + capturas post-ejecución
+  // Modal video post-ejecución
   videoUrl = signal<string | null>(null);
-  capturas = signal<string[]>([]);
-  capturaSel = signal<string | null>(null);
-  errorDetail = signal<string | null>(null);
   ejecutandoId = signal<number | null>(null);
 
   // Modal script editor
@@ -92,7 +89,28 @@ export class TestListComponent implements OnInit {
       },
       error: () => {
         this.cargando = false;
-        this.mostrarToast('Error al levantar el grabador.', 'error');
+        this.mostrarToast('Error al levantar el grabador. ¿Está el servidor activo?', 'error');
+      }
+    });
+  }
+
+  crearManual(): void {
+    if (!this.nuevoTest.nombre || !this.nuevoTest.url) {
+      this.mostrarToast('Completa el nombre y la URL.', 'error');
+      return;
+    }
+    this.cargando = true;
+    this.testService.createManualTest(this.nuevoTest).subscribe({
+      next: () => {
+        this.cargando = false;
+        this.mostrandoGrabador = false;
+        this.nuevoTest = { nombre: '', url: '' };
+        this.cargar();
+        this.mostrarToast('Test creado. Ya puedes editar su código.', 'success');
+      },
+      error: (err: any) => {
+        this.cargando = false;
+        this.mostrarToast('Error al crear el test manual', 'error');
       }
     });
   }
@@ -100,35 +118,16 @@ export class TestListComponent implements OnInit {
   ejecutarTest(testId: number): void {
     const slowMo = this.getSlowMo(testId);
     this.ejecutandoId.set(testId);
-
-    // Limpiar evidencias anteriores
-    this.videoUrl.set(null);
-    this.capturas.set([]);
-    this.errorDetail.set(null);
-
-    if (slowMo > 0) {
-      this.mostrarToast('🖥️ Modo visible — busca la ventana de Chromium en tu escritorio.', 'success', 6000);
-    }
-
     this.testService.runTest(testId, slowMo).subscribe({
       next: (res) => {
         this.ejecutandoId.set(null);
         if (res.videoUrl) this.videoUrl.set(res.videoUrl);
-        if (res.capturas?.length) this.capturas.set(res.capturas);
         this.mostrarToast(`Ejecución ${res.status === 'PASSED' ? 'exitosa ✅' : 'fallida ❌'}`, res.status === 'PASSED' ? 'success' : 'error');
         this.cargar();
       },
-      error: (err) => {
+      error: () => {
         this.ejecutandoId.set(null);
-        const res = err?.error;
-        const detail = res?.errorDetail || null;
-        if (detail) this.errorDetail.set(detail);
-
-        // Si el fallo trajo evidencia, la cargamos también
-        if (res?.videoUrl) this.videoUrl.set(res.videoUrl);
-        if (res?.capturas?.length) this.capturas.set(res.capturas);
-
-        this.mostrarToast('El robot falló ❌ — revisa el detalle del error.', 'error');
+        this.mostrarToast('No se pudo ejecutar el robot.', 'error');
         this.cargar();
       }
     });
@@ -171,33 +170,13 @@ export class TestListComponent implements OnInit {
   abrirHistorial(test: any): void { this.historialTestId.set(test.id); this.historialNombre.set(test.nombre); }
   cerrarScriptEditor(): void { this.scriptEditorTestId.set(null); }
   cerrarHistorial(): void { this.historialTestId.set(null); }
-  cerrarVideo(): void { this.videoUrl.set(null); this.capturas.set([]); this.capturaSel.set(null); }
+  cerrarVideo(): void { this.videoUrl.set(null); }
   ejecutarDesdeEditor(e: { testId: number; script: string }): void { this.ejecutarTest(e.testId); }
 
-  // ── Descargar capturas ──
-  downloadCaptura(url: string, index: number): void {
-    fetch(url)
-      .then(r => r.blob())
-      .then(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `paso_${String(index + 1).padStart(3, '0')}.png`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      });
-  }
-
-  async downloadAllCapturas(): Promise<void> {
-    for (let i = 0; i < this.capturas().length; i++) {
-      this.downloadCaptura(this.capturas()[i], i);
-      await new Promise(r => setTimeout(r, 350)); // pausa entre descargas
-    }
-  }
-
   // ── Toast ──
-  mostrarToast(texto: string, tipo: 'success' | 'error', duracion = 3500): void {
+  mostrarToast(texto: string, tipo: 'success' | 'error'): void {
     this.toast.set({ texto, tipo });
-    setTimeout(() => this.toast.set(null), duracion);
+    setTimeout(() => this.toast.set(null), 3500);
   }
 
   irAlAdmin(): void { this.router.navigate(['/admin']); }
