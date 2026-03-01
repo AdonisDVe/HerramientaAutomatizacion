@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TestService } from '../../services/test';
@@ -43,6 +43,23 @@ export class TestListComponent implements OnInit {
   renombrandoId = signal<number | null>(null);
   nuevoNombre = signal<string>('');
 
+  // Proyectos
+  proyectos = signal<any[]>([]);
+  proyectoActivoId = signal<number | null>(null);
+  mostrandoNuevoProyecto = false;
+  adminStats = signal<any>(null);
+
+  // Filtered Tests
+  filteredTests = computed(() => {
+    const pId = this.proyectoActivoId();
+    if (pId === null) return this.tests();
+    return this.tests().filter(t => t.proyecto_id === pId);
+  });
+
+  seleccionarProyecto(id: number | null): void {
+    this.proyectoActivoId.set(id);
+  }
+
   // Velocidad de ejecución por test (0 = normal, ms = lento)
   slowMoMap = signal<Map<number, number>>(new Map());
 
@@ -71,6 +88,16 @@ export class TestListComponent implements OnInit {
       next: (data) => this.tests.set(data),
       error: () => this.mostrarToast('Error al cargar los tests.', 'error')
     });
+    this.testService.getProyectos().subscribe({
+      next: (data) => this.proyectos.set(data),
+      error: () => console.error('Error al cargar proyectos')
+    });
+    if (this.isAdmin) {
+      this.testService.getAdminStats().subscribe({
+        next: (data) => this.adminStats.set(data),
+        error: () => console.error('Error al cargar stats')
+      });
+    }
   }
 
   iniciarGrabacion(): void {

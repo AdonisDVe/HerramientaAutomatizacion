@@ -191,22 +191,6 @@ async function executeScript(scriptContent, testId, slowMo = 0, contextOpts = {}
             }
         }
 
-<<<<<<< HEAD
-        // Ejecutamos el archivo y capturamos logs
-        let scriptError = null;
-        try {
-            await execPromise(`node "${tempFile}"`);
-        } catch (execErr) {
-            console.error('⚠️ El script de QA falló durante la ejecución.');
-            scriptError = execErr;
-        }
-
-        // Buscamos el video generado (incluso si falló, Playwright suele guardar hasta el punto de fallo)
-        const files = fs.readdirSync(evidencePath)
-            .filter(f => f.endsWith('.webm'))
-            .map(f => ({ file: f, time: fs.statSync(path.join(evidencePath, f)).mtime.getTime() }))
-            .sort((a, b) => b.time - a.time);
-=======
         console.log(`📸 Inyectadas ${stepNum} capturas | 🎥 Video dir: ${videoDir}`);
         fs.writeFileSync(tempFile, modified);
 
@@ -218,7 +202,6 @@ async function executeScript(scriptContent, testId, slowMo = 0, contextOpts = {}
             await new Promise((resolve, reject) => {
                 const { spawn } = require('child_process');
                 const child = spawn('node', [tempFile]);
->>>>>>> 49bbeed10f2b35a6400112e42f33c0bb4a4fadc9
 
                 const timeoutId = setTimeout(() => {
                     child.kill();
@@ -285,20 +268,6 @@ async function executeScript(scriptContent, testId, slowMo = 0, contextOpts = {}
 
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
 
-<<<<<<< HEAD
-        if (scriptError) {
-            return {
-                success: false,
-                video: videoFileName,
-                log: scriptError.stdout + '\n' + scriptError.stderr
-            };
-        }
-
-        return { success: true, video: videoFileName };
-    } catch (error) {
-        if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
-        console.error('❌ Error fatal en inicialización del Script:', error.message);
-=======
         // Registro Historial Demo-Ready
         try {
             const histLog = {
@@ -320,7 +289,6 @@ async function executeScript(scriptContent, testId, slowMo = 0, contextOpts = {}
 
     } catch (error) {
         if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
->>>>>>> 49bbeed10f2b35a6400112e42f33c0bb4a4fadc9
         throw error;
     }
 }
