@@ -20,6 +20,11 @@ export class TestService {
     return this.http.get<any[]>(this.apiUrl, { headers: this.getHeaders() });
   }
 
+  // ── Lista de proyectos ──
+  getProyectos(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/proyectos`, { headers: this.getHeaders() });
+  }
+
   // ── Grabar nuevo script ──
   recordTest(datos: { nombre: string; url: string }): Observable<any> {
     return this.http.post<any>(`${this.apiUrl}/record`, datos, { headers: this.getHeaders() });
