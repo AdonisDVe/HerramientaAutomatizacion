@@ -4,8 +4,12 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 module.exports = (req, res, next) => {
+    let token = null;
+
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    if (authHeader) token = authHeader.split(' ')[1];
+
+    if (!token && req.query.token) token = req.query.token;
 
     if (!token) {
         console.error('❌ Error: Petición sin Token');

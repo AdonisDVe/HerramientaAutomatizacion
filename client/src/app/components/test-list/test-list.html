@@ -7,12 +7,23 @@
     </div>
     <nav class="sidebar-nav">
       <span class="nav-section-label">Menú</span>
-      <a class="nav-item nav-active">
-        <span class="nav-icon">🧪</span> Pruebas - QA
+      <a class="nav-item" [class.nav-active]="proyectoActivoId() === null" (click)="seleccionarProyecto(null)">
+        <span class="nav-icon">🧪</span> Todas las Pruebas
       </a>
       @if (isAdmin) {
       <a class="nav-item" (click)="irAlAdmin()">
         <span class="nav-icon">📊</span> Admin Stats
+      </a>
+      }
+
+      <hr class="sidebar-divider">
+      <div class="sidebar-section-header">
+        <span class="nav-section-label">Carpetas / Proyectos</span>
+        <button class="btn-icon-small" (click)="mostrandoNuevoProyecto = true" title="Nueva Carpeta">+</button>
+      </div>
+      @for (p of proyectos(); track p.id) {
+      <a class="nav-item" [class.nav-active]="proyectoActivoId() === p.id" (click)="seleccionarProyecto(p.id)">
+        <span class="nav-icon">📁</span> {{ p.nombre }}
       </a>
       }
     </nav>
@@ -39,12 +50,39 @@
     </div>
     }
 
+    <!-- Admin Elegant Widgets -->
+    @if (isAdmin && adminStats()) {
+    <div class="admin-widgets-container">
+      <div class="admin-widget">
+        <div class="widget-icon">🧪</div>
+        <div class="widget-data">
+          <span class="widget-value">{{ adminStats().totalTests }}</span>
+          <span class="widget-label">Tests Totales</span>
+        </div>
+      </div>
+      <div class="admin-widget">
+        <div class="widget-icon success">✅</div>
+        <div class="widget-data">
+          <span class="widget-value">{{ adminStats().tasaExito }}%</span>
+          <span class="widget-label">Tasa de Éxito</span>
+        </div>
+      </div>
+      <div class="admin-widget">
+        <div class="widget-icon warning">⚙️</div>
+        <div class="widget-data">
+          <span class="widget-value">{{ adminStats().totalEjecuciones }}</span>
+          <span class="widget-label">Ejecuciones</span>
+        </div>
+      </div>
+    </div>
+    }
+
     <!-- Header -->
     <div class="page-header">
       <div>
         <h1 class="page-title">Pruebas - QA</h1>
-        <p class="page-sub">{{ tests().length }} prueba{{ tests().length !== 1 ? 's' : '' }} registrada{{ tests().length
-          !== 1 ? 's' : '' }}</p>
+        <p class="page-sub">{{ filteredTests.length }} prueba{{ filteredTests.length !== 1 ? 's' : '' }} registrada{{
+          filteredTests.length !== 1 ? 's' : '' }}</p>
       </div>
       <button class="btn-primary" (click)="mostrandoGrabador = true">
         + Grabar nueva prueba
@@ -113,10 +151,10 @@
     }
 
     <!-- ── Tabla ── -->
-    @if (tests().length === 0) {
+    @if (filteredTests.length === 0) {
     <div class="empty-state">
       <span class="empty-icon">🧪</span>
-      <p>No hay pruebas registradas aún.</p>
+      <p>No hay pruebas registradas en esta vista.</p>
       <p class="empty-sub">Haz clic en "+ Grabar nueva prueba" para comenzar.</p>
       <button class="btn-primary" (click)="mostrandoGrabador = true">+ Grabar primera prueba</button>
     </div>
@@ -133,7 +171,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (test of tests(); track test.id) {
+          @for (test of filteredTests; track test.id) {
           <tr [class.row-running]="ejecutandoId() === test.id">
 
             <!-- Nombre -->

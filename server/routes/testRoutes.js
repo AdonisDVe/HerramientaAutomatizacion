@@ -15,6 +15,11 @@ router.post('/manual', authMiddleware, testController.createManualTest);
 router.post('/:testId/run', authMiddleware, testController.executeTest);
 router.delete('/:id', authMiddleware, testController.deleteTest);
 
+// — Proyectos / Carpetas —
+router.get('/proyectos', authMiddleware, testController.getAllProyectos);
+router.post('/proyectos', authMiddleware, testController.createProyecto);
+router.patch('/:id/proyecto', authMiddleware, testController.assignProyecto);
+
 // — Script Editor —
 router.get('/:id/script', authMiddleware, testController.getTestScript);
 router.patch('/:id/script', authMiddleware, testController.updateTestScript);
@@ -22,7 +27,8 @@ router.patch('/:id/script', authMiddleware, testController.updateTestScript);
 // — Renombrar test —
 router.patch('/:id/rename', authMiddleware, testController.renameTest);
 
-// — Historial de ejecuciones —
+// — Historial de ejecuciones y Logs —
 router.get('/:id/executions', authMiddleware, testController.getExecutions);
+router.get('/logs/:ejecucionId', authMiddleware, testController.getExecutionLogs);
 
 module.exports = router;

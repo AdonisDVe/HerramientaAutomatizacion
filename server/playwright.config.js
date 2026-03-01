@@ -3,6 +3,7 @@ const { defineConfig, devices } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: process.env.PLAYWRIGHT_TEST_DIR || './tests',
   fullyParallel: true,
+  workers: 1, // Limitar a 1 worker para ahorrar CPU y RAM en el VPS
   reporter: [['html', { open: 'never' }]],
   use: {
     // --- ESTA ES LA CLAVE ---
@@ -14,6 +15,6 @@ module.exports = defineConfig({
     video: 'on',
     trace: 'on',
     baseURL: 'http://sirio-dev-frontend-alb-894180136.us-east-1.elb.amazonaws.com',
-    headless: false,
+    headless: true,
   },
 });

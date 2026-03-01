@@ -2,7 +2,7 @@ require('dotenv').config();
 const db = require('../config/db');
 const path = require('path');
 const fs = require('fs');
-const { recordScript, executeScript } = require('../automation/integrador');
+const { recordScript, executeScript, liveLogsEmitter } = require('../automation/integrador');
 
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3001';
 const evidencePath = path.resolve(__dirname, '../evidencias');
@@ -13,11 +13,13 @@ const evidencePath = path.resolve(__dirname, '../evidencias');
 exports.getAllTests = async (req, res) => {
     try {
         const [rows] = await db.query(`
-            SELECT t.*,
+            SELECT t.*, p.nombre as proyecto_nombre,
             (SELECT COUNT(*) FROM ejecuciones e WHERE e.test_id = t.id) as total_ejecuciones,
             (SELECT e2.resultado FROM ejecuciones e2 WHERE e2.test_id = t.id ORDER BY e2.iniciado_en DESC LIMIT 1) as ultimo_resultado,
             (SELECT e3.iniciado_en FROM ejecuciones e3 WHERE e3.test_id = t.id ORDER BY e3.iniciado_en DESC LIMIT 1) as ultima_ejecucion
-            FROM tests t WHERE t.estado = 'ACTIVO' ORDER BY t.creado_en DESC
+            FROM tests t 
+            LEFT JOIN proyectos p ON t.proyecto_id = p.id
+            WHERE t.estado = 'ACTIVO' ORDER BY t.creado_en DESC
         `);
         console.log(`📋 Tests encontrados: ${rows.length}`);
         res.json(rows);
@@ -142,7 +144,12 @@ exports.executeTest = async (req, res) => {
     const inicioMs = Date.now();
 
     try {
-        const [tests] = await db.query('SELECT * FROM tests WHERE id = ? AND estado = "ACTIVO"', [testId]);
+        const [tests] = await db.query(`
+            SELECT t.*, p.nombre as proyecto_nombre 
+            FROM tests t 
+            LEFT JOIN proyectos p ON t.proyecto_id = p.id 
+            WHERE t.id = ? AND t.estado = "ACTIVO"
+        `, [testId]);
         if (tests.length === 0) return res.status(404).json({ error: 'Test no encontrado' });
 
         const scriptContent = tests[0].script_codigo;
@@ -155,33 +162,92 @@ exports.executeTest = async (req, res) => {
         );
         const ejecucionId = ejecucion.insertId;
 
-        try {
-            const result = await executeScript(scriptContent, testId, slowMo);
-            const duracionTotal = Date.now() - inicioMs;
+        // EJECUCION ASINCRONA
+        (async () => {
+            try {
+                const contextOptions = {
+                    ejecucionId,
+                    proyectoNombre: tests[0].proyecto_nombre || 'Default',
+                    usuarioNombre: req.user.nombre || 'Desconocido'
+                };
+                const result = await executeScript(scriptContent, testId, slowMo, contextOptions);
+                const duracionTotal = Date.now() - inicioMs;
 
-            await db.query(
-                'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW() WHERE id = ?',
-                ['PASSED', duracionTotal, ejecucionId]
-            );
+                await db.query(
+                    'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW() WHERE id = ?',
+                    ['PASSED', duracionTotal, ejecucionId]
+                );
 
-            await db.query(
-                'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
-                [ejecucionId, 'VIDEO', result.video]
-            );
+                await db.query(
+                    'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                    [ejecucionId, 'VIDEO', result.video]
+                );
 
-            res.json({
-                message: 'Ejecución terminada',
-                status: 'PASSED',
-                videoUrl: `${SERVER_URL}/evidencias/${result.video}`
-            });
-        } catch (execError) {
-            const duracionTotal = Date.now() - inicioMs;
-            await db.query(
-                'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW() WHERE id = ?',
-                ['FAILED', duracionTotal, ejecucionId]
-            );
-            res.status(500).json({ error: 'El robot falló durante la ejecución.', status: 'FAILED' });
-        }
+                if (result.capturas && result.capturas.length > 0) {
+                    for (const captura of result.capturas) {
+                        await db.query(
+                            'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                            [ejecucionId, 'SCREENSHOT', captura]
+                        );
+                    }
+                }
+
+                const capturasUrls = (result.capturas || []).map(c => `${SERVER_URL}/ver-reportes/${c}`);
+                const finalVideoUrl = result.video ? `${SERVER_URL}/ver-reportes/${result.video}` : null;
+
+                liveLogsEmitter.emit('log', { ejecucionId, type: 'DONE', result: { videoUrl: finalVideoUrl, capturas: capturasUrls } });
+            } catch (execError) {
+                const duracionTotal = Date.now() - inicioMs;
+                console.error(`❌ Ejecución fallida para Test #${testId}:`, execError.message);
+
+                const errorMsg = execError.message
+                    ? execError.message
+                        .replace(/^Command failed:[^\n]*\n/, '')
+                        .replace(/node:internal[^\n]*/g, '')
+                        .replace(/\n{3,}/g, '\n\n')
+                        .trim()
+                        .substring(0, 2000)
+                    : 'Error desconocido';
+
+                await db.query(
+                    'UPDATE ejecuciones SET resultado = ?, duracion_ms = ?, finalizado_en = NOW(), error_log = ? WHERE id = ?',
+                    ['FAILED', duracionTotal, errorMsg, ejecucionId]
+                );
+
+                const failEvidence = execError.evidence || {};
+                const failVideo = failEvidence.video || null;
+                const failCapturas = failEvidence.capturas || [];
+
+                if (failVideo) {
+                    try {
+                        await db.query(
+                            'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                            [ejecucionId, 'VIDEO', failVideo]
+                        );
+                    } catch (dbErr) { }
+                }
+
+                for (const cap of failCapturas) {
+                    try {
+                        await db.query(
+                            'INSERT INTO evidencias_archivos (ejecucion_id, tipo_archivo, ruta_archivo) VALUES (?, ?, ?)',
+                            [ejecucionId, 'SCREENSHOT', cap]
+                        );
+                    } catch (dbErr) { }
+                }
+
+                const failVideoUrl = failVideo ? `${SERVER_URL}/ver-reportes/${failVideo}` : null;
+                const failCapturasUrls = failCapturas.map(c => `${SERVER_URL}/ver-reportes/${c}`);
+                liveLogsEmitter.emit('log', { ejecucionId, type: 'ERROR', error: errorMsg, result: { videoUrl: failVideoUrl, capturas: failCapturasUrls } });
+            }
+        })();
+
+        // Responder inmediatamente al frontend para que se conecte al SSE
+        res.json({
+            message: 'Ejecución iniciada',
+            status: 'STARTED',
+            ejecucionId
+        });
     } catch (error) {
         console.error('🔥 Error en la ejecución:', error.message);
         res.status(500).json({ error: error.message });
@@ -207,10 +273,10 @@ exports.getExecutions = async (req, res) => {
             LIMIT 50
         `, [id]);
 
-        // Agrega la URL completa del video
+        // Agrega la URL completa del video (con /ver-reportes/ en vez de /evidencias/)
         const result = rows.map(r => ({
             ...r,
-            videoUrl: r.video_archivo ? `${SERVER_URL}/evidencias/${r.video_archivo}` : null,
+            videoUrl: r.video_archivo ? `${SERVER_URL}/ver-reportes/${r.video_archivo}` : null,
             videoFilename: r.video_archivo || null
         }));
 
@@ -395,6 +461,74 @@ exports.cambiarRolUsuario = async (req, res) => {
         await db.query('UPDATE usuarios SET rol = ? WHERE id = ?', [rol, id]);
         const [[usuario]] = await db.query('SELECT id, nombre_completo, email, rol FROM usuarios WHERE id = ?', [id]);
         res.json({ success: true, usuario });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────
+// Stream de Logs en Tiempo Real (SSE)
+// ─────────────────────────────────────────────
+exports.getExecutionLogs = (req, res) => {
+    const { ejecucionId } = req.params;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    const onLog = (data) => {
+        if (String(data.ejecucionId) === String(ejecucionId)) {
+            // Include result and error if present for DONE or ERROR states
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+    };
+
+    liveLogsEmitter.on('log', onLog);
+
+    req.on('close', () => {
+        liveLogsEmitter.removeListener('log', onLog);
+        res.end();
+    });
+};
+
+// ─────────────────────────────────────────────
+// CRUD de Proyectos (SaaS Folders)
+// ─────────────────────────────────────────────
+exports.getAllProyectos = async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM proyectos ORDER BY creado_en DESC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.createProyecto = async (req, res) => {
+    const { nombre, descripcion } = req.body;
+    const usuarioId = req.user.id;
+    if (!nombre) return res.status(400).json({ error: 'El nombre del proyecto es obligatorio' });
+
+    try {
+        const [result] = await db.query(
+            'INSERT INTO proyectos (nombre, descripcion, creado_por) VALUES (?, ?, ?)',
+            [nombre, descripcion || null, usuarioId]
+        );
+        const [nuevo] = await db.query('SELECT * FROM proyectos WHERE id = ?', [result.insertId]);
+        res.json(nuevo[0]);
+    } catch (error) {
+        console.error('🔥 Error al crear proyecto (puede ser por Token/Usuario obsoleto):', error.message);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.assignProyecto = async (req, res) => {
+    const { id } = req.params;
+    const { proyecto_id } = req.body;
+
+    try {
+        await db.query('UPDATE tests SET proyecto_id = ? WHERE id = ?', [proyecto_id || null, id]);
+        res.json({ success: true, message: 'Proyecto asignado correctamente' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
